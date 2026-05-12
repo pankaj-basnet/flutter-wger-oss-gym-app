@@ -23,6 +23,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:powersync/powersync.dart' as ps;
 import 'package:wger/database/converters/time_of_day_converter.dart';
 import 'package:wger/database/converters/workout_impression_converter.dart';
+import 'package:wger/database/powersync/tables/ingredient_list_items.dart';
+import 'package:wger/database/powersync/tables/ingredient_lists.dart';
 import 'package:wger/models/body_weight/weight_entry.dart';
 import 'package:wger/models/core/language.dart';
 import 'package:wger/models/core/license.dart';
@@ -97,6 +99,9 @@ part 'database.g.dart';
     // Nutrition
     NutritionalPlanTable,
     IngredientTable,
+    IngredientListsTable,
+    IngredientListItemsTable,
+
     IngredientImageTable,
     IngredientWeightUnitTable,
     MealTable,
@@ -120,6 +125,8 @@ class DriftPowersyncDatabase extends _$DriftPowersyncDatabase {
       onCreate: (m) async {
         // We don't have to call createAll(), PowerSync instantiates the schema
         // for us. We can use the opportunity to create fts5 indexes though.
+
+        await m.createAll(); // Ensure all tables are created on fresh install
       },
       onUpgrade: (m, from, to) async {
         if (from == 1) {
@@ -128,6 +135,9 @@ class DriftPowersyncDatabase extends _$DriftPowersyncDatabase {
           //   tableName: 'todos',
           //   columns: ['description', 'list_id'],
           // );
+
+          await m.createTable(ingredientListsTable);
+          await m.createTable(ingredientListItemsTable);
         }
       },
     );
