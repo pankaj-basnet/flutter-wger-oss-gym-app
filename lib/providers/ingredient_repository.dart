@@ -22,6 +22,7 @@ import 'package:logging/logging.dart';
 import 'package:wger/helpers/consts.dart';
 import 'package:wger/models/core/search_options.dart';
 import 'package:wger/models/nutrition/ingredient.dart';
+import 'package:wger/models/nutrition/ingredient_list_entry.dart';
 import 'package:wger/models/nutrition/ingredient_weight_unit.dart';
 import 'package:wger/providers/base_provider.dart';
 import 'package:wger/providers/wger_base.dart';
@@ -59,6 +60,18 @@ class IngredientRepository {
     return query.watch().map((rows) {
       final hydrated = _hydrate(rows);
       return hydrated.isEmpty ? null : hydrated.first;
+    });
+  }
+
+  /// Watches all locally synced ingredients.
+  ///
+  /// Only ingredients that are used in a nutritional plan or log are
+  /// synced to the device for offline storage in the Drift database.
+  Stream<List<Ingredient>> watchAllDrift() {
+    _logger.finer('Watching all synced ingredients');
+    final query = _baseJoinedQuery()..orderBy([OrderingTerm(expression: _db.ingredientTable.name)]);
+    return query.watch().map((rows) {
+      return _hydrate(rows);
     });
   }
 
@@ -169,6 +182,157 @@ class IngredientRepository {
       return null;
     }
     return Ingredient.fromJson(data['results'][0]);
+  }
+
+  Stream<List<IngredientListEntry>> watchListMembershipForIngredient(int ingredientId) {
+    final query = _db.select(_db.ingredientListsTable);
+
+    return query.watch().asyncExpand((lists) {
+      if (lists.isEmpty) return Stream.value([]);
+
+      // For each list, check if the ingredient is present
+      return _db.select(_db.ingredientListItemsTable).watch().map((allItems) {
+        return lists.map((list) {
+          final isSelected = allItems.any(
+            (item) => item.listId == list.id && item.ingredientId == ingredientId,
+          );
+          return IngredientListEntry(
+            id: list.id,
+            name: list.name,
+            isSelected: isSelected,
+          );
+        }).toList();
+      });
+    });
+  }
+
+  Future<void> toggleIngredientInList(int listId, int ingredientId) async {
+    final query = _db.delete(_db.ingredientListItemsTable)
+      ..where((t) => t.listId.equals(listId) & t.ingredientId.equals(ingredientId));
+
+    final deletedCount = await query.go();
+
+    if (deletedCount == 0) {
+      // If nothing was deleted, it wasn't there, so we add it
+      await _db
+          .into(_db.ingredientListItemsTable)
+          .insert(
+            IngredientListItemsTableCompanion.insert(
+              listId: listId,
+              ingredientId: ingredientId,
+              addedAt: DateTime.now(),
+            ),
+          );
+    }
+  }
+
+  /// Watches all user-created ingredient lists.
+  /// Emits a new list whenever any list is added, renamed, or deleted.
+  Stream<List<IngredientListEntry>> watchAllIngredientLists() {
+    return _db
+        .select(_db.ingredientListsTable)
+        .watch()
+        .map(
+          (rows) => rows
+              .map(
+                (row) => IngredientListEntry(
+                  id: row.id,
+                  name: row.name,
+                  isSelected: false,
+                  ingredientCount: 0,
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  /// Watches all user-created ingredient lists, annotated with:
+  /// - [ingredientCount]: total ingredients in that list
+  /// - [isSelected]: whether [ingredientId] is already in that list
+  ///   (pass null when there is no ingredient context)
+  Stream<List<IngredientListEntry>> watchAllListsWithMembership({
+    int? ingredientId,
+  }) {
+    final listStream = _db.select(_db.ingredientListsTable).watch();
+    final itemStream = _db.select(_db.ingredientListItemsTable).watch();
+
+    return listStream.asyncExpand((lists) {
+      if (lists.isEmpty) return Stream.value([]);
+      return itemStream.map((allItems) {
+        return lists.map((list) {
+          final itemsForList = allItems.where((i) => i.listId == list.id).toList();
+          final isSelected =
+              ingredientId != null && itemsForList.any((i) => i.ingredientId == ingredientId);
+          return IngredientListEntry(
+            id: list.id,
+            name: list.name,
+            isSelected: isSelected,
+            ingredientCount: itemsForList.length,
+          );
+        }).toList();
+      });
+    });
+  }
+
+  /// Watches all ingredients belonging to [listId], fully hydrated.
+  Stream<List<Ingredient>> watchIngredientsInList(int listId) {
+    // Get the ids of ingredients in the list, then join with ingredient table
+    final itemQuery = _db.select(_db.ingredientListItemsTable)
+      ..where((t) => t.listId.equals(listId));
+
+    return itemQuery.watch().asyncExpand((items) {
+      if (items.isEmpty) return Stream.value([]);
+      final ids = items.map((i) => i.ingredientId).toList();
+      final query = _baseJoinedQuery()..where(_db.ingredientTable.id.isIn(ids));
+      return query.watch().map(_hydrate);
+    });
+  }
+
+  /// Creates a new user-created ingredient list with [name].
+  /// Returns the id of the newly created list.
+  Future<int> createIngredientList(String name) async {
+    _logger.info('Creating ingredient list: $name');
+    final id = await _db
+        .into(_db.ingredientListsTable)
+        .insert(
+          IngredientListsTableCompanion.insert(name: name, createdAt: DateTime.now()),
+        );
+    return id;
+  }
+
+  /// Deletes the list with [listId] and all its ingredient memberships.
+  Future<void> deleteIngredientList(int listId) async {
+    _logger.info('Deleting ingredient list id=$listId');
+    await _db.transaction(() async {
+      // Delete items first (foreign key child)
+      await (_db.delete(_db.ingredientListItemsTable)..where((t) => t.listId.equals(listId))).go();
+      // Delete the list itself
+      await (_db.delete(_db.ingredientListsTable)..where((t) => t.id.equals(listId))).go();
+    });
+  }
+
+  /// Adds [ingredientId] to [listId] if it is not already present.
+  /// Does nothing (idempotent) if it is already there.
+  Future<void> addIngredientToList(int listId, int ingredientId) async {
+    _logger.info('Adding ingredient $ingredientId to list $listId');
+    await _db
+        .into(_db.ingredientListItemsTable)
+        .insertOnConflictUpdate(
+          IngredientListItemsTableCompanion.insert(
+            listId: listId,
+            ingredientId: ingredientId,
+            addedAt: DateTime.now(),
+          ),
+        );
+  }
+
+  /// Removes [ingredientId] from [listId].
+  Future<void> removeIngredientFromList(int listId, int ingredientId) async {
+    _logger.info('Removing ingredient $ingredientId from list $listId');
+    await (_db.delete(_db.ingredientListItemsTable)..where(
+          (t) => t.listId.equals(listId) & t.ingredientId.equals(ingredientId),
+        ))
+        .go();
   }
 
   /// Builds the standard joined query used by every ingredient lookup
