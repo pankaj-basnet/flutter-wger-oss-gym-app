@@ -36,11 +36,9 @@ void main() {
   final mockSharedPreferences = MockSharedPreferencesAsync();
 
   setUp(() {
-    when(mockSharedPreferences.getBool(any)).thenAnswer((_) async => null);
-    when(mockSharedPreferences.getString(any)).thenAnswer((_) async => null);
-    when(
-      mockSharedPreferences.setBool(any, any),
-    ).thenAnswer((_) async {});
+    when(mockUserProvider.themeMode).thenReturn(ThemeMode.system);
+    when(mockUserProvider.userLocale).thenReturn(null);
+    when(mockUserProvider.setUserLocale(any)).thenAnswer((_) async {});
     when(
       mockSharedPreferences.remove(any),
     ).thenAnswer((_) async {});
@@ -60,52 +58,56 @@ void main() {
     );
   }
 
-  group('Theme settings (AppSettingsNotifier)', () {
-    test('default theme is system', () async {
-      when(
-        mockSharedPreferences.getBool(PREFS_USER_DARK_THEME),
-      ).thenAnswer((_) async => null);
-      final container = riverpod.ProviderContainer(
-        overrides: [
-          appSettingsPrefsProvider.overrideWithValue(mockSharedPreferences),
-        ],
-      );
-      addTearDown(container.dispose);
+  group('Cache', () {
+    testWidgets('Test resetting the exercise cache', (WidgetTester tester) async {
+      await tester.pumpWidget(createSettingsScreen());
+      await tester.tap(find.byKey(const ValueKey('cacheIconExercisesDelete')));
+      await tester.pumpAndSettle();
 
-      final settings = await container.read(appSettingsProvider.future);
-      expect(settings.themeMode, ThemeMode.system);
+      verify(mockExerciseProvider.clearAllCachesAndPrefs());
     });
 
-    test('loads light theme from prefs', () async {
-      when(
-        mockSharedPreferences.getBool(PREFS_USER_DARK_THEME),
-      ).thenAnswer((_) async => false);
-      final container = riverpod.ProviderContainer(
-        overrides: [
-          appSettingsPrefsProvider.overrideWithValue(mockSharedPreferences),
-        ],
-      );
-      addTearDown(container.dispose);
+    testWidgets('Test refreshing the exercise cache', (WidgetTester tester) async {
+      await tester.pumpWidget(createSettingsScreen());
+      await tester.tap(find.byKey(const ValueKey('cacheIconExercisesRefresh')));
+      await tester.pumpAndSettle();
 
-      final settings = await container.read(appSettingsProvider.future);
-      expect(settings.themeMode, ThemeMode.light);
+      verify(mockExerciseProvider.clearAllCachesAndPrefs());
+      verify(mockExerciseProvider.fetchAndSetInitialData());
+      verify(mockExerciseProvider.fetchAndSetAllExercises());
     });
 
-    test('saves theme to prefs', () async {
-      when(
-        mockSharedPreferences.getBool(PREFS_USER_DARK_THEME),
-      ).thenAnswer((_) async => null);
-      final container = riverpod.ProviderContainer(
-        overrides: [
-          appSettingsPrefsProvider.overrideWithValue(mockSharedPreferences),
-        ],
-      );
-      addTearDown(container.dispose);
+    testWidgets('Test resetting the ingredient cache', (WidgetTester tester) async {
+      await tester.pumpWidget(createSettingsScreen());
+      await tester.tap(find.byKey(const ValueKey('cacheIconIngredients')));
+      await tester.pumpAndSettle();
 
-      await container.read(appSettingsProvider.future);
-      await container.read(appSettingsProvider.notifier).setThemeMode(ThemeMode.dark);
+      verify(mockNutritionProvider.clearIngredientCache());
+    });
+  });
 
-      expect(container.read(appSettingsProvider).requireValue.themeMode, ThemeMode.dark);
+  group('Theme settings', () {
+    test('Default theme is system', () async {
+      when(mockSharedPreferences.getBool(PREFS_USER_DARK_THEME)).thenAnswer((_) async => null);
+      when(mockSharedPreferences.getString(PREFS_USER_LOCALE)).thenAnswer((_) async => null);
+      final userProvider = UserProvider(MockWgerBaseProvider(), prefs: mockSharedPreferences);
+      await Future.delayed(const Duration(milliseconds: 50)); // wait for async prefs load
+      expect(userProvider.themeMode, ThemeMode.system);
+    });
+
+    test('Loads light theme', () async {
+      when(mockSharedPreferences.getBool(PREFS_USER_DARK_THEME)).thenAnswer((_) async => false);
+      when(mockSharedPreferences.getString(PREFS_USER_LOCALE)).thenAnswer((_) async => null);
+      final userProvider = UserProvider(MockWgerBaseProvider(), prefs: mockSharedPreferences);
+      await Future.delayed(const Duration(milliseconds: 50)); // wait for async prefs load
+      expect(userProvider.themeMode, ThemeMode.light);
+    });
+
+    test('Saves theme to prefs', () {
+      when(mockSharedPreferences.getBool(any)).thenAnswer((_) async => null);
+      when(mockSharedPreferences.getString(any)).thenAnswer((_) async => null);
+      final userProvider = UserProvider(MockWgerBaseProvider(), prefs: mockSharedPreferences);
+      userProvider.setThemeMode(ThemeMode.dark);
       verify(mockSharedPreferences.setBool(PREFS_USER_DARK_THEME, true)).called(1);
     });
 
@@ -115,9 +117,82 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('themeModeDropdown')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Always light mode'));
+
+      verify(mockUserProvider.setThemeMode(ThemeMode.light)).called(1);
+    });
+  });
+
+  group('Language switcher', () {
+    testWidgets('shows system option when no override set', (WidgetTester tester) async {
+      await tester.pumpWidget(createSettingsScreen());
       await tester.pumpAndSettle();
 
-      verify(mockSharedPreferences.setBool(PREFS_USER_DARK_THEME, false)).called(1);
+      // The dropdown is built; tap to open it.
+      final dropdown = find.byKey(const ValueKey('appLanguageDropdown'));
+      expect(dropdown, findsOneWidget);
+
+      await tester.ensureVisible(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      // "System language" option exists in the open menu.
+      expect(find.text('System default'), findsWidgets);
+    });
+
+    testWidgets('selecting a language calls setUserLocale', (WidgetTester tester) async {
+      await tester.pumpWidget(createSettingsScreen());
+      await tester.pumpAndSettle();
+
+      final dropdown = find.byKey(const ValueKey('appLanguageDropdown'));
+      await tester.ensureVisible(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      // German is rendered in its native name ("Deutsch") in the menu.
+      await tester.tap(find.text('Deutsch').last);
+      await tester.pumpAndSettle();
+
+      final captured =
+          verify(mockUserProvider.setUserLocale(captureAny)).captured.single as Locale?;
+      expect(captured?.languageCode, 'de');
+    });
+
+    testWidgets('selecting "System language" passes null', (WidgetTester tester) async {
+      when(mockUserProvider.userLocale).thenReturn(const Locale('de'));
+
+      await tester.pumpWidget(createSettingsScreen());
+      await tester.pumpAndSettle();
+
+      final dropdown = find.byKey(const ValueKey('appLanguageDropdown'));
+      await tester.ensureVisible(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('System default').last);
+      await tester.pumpAndSettle();
+
+      final captured = verify(mockUserProvider.setUserLocale(captureAny)).captured.single;
+      expect(captured, isNull);
+    });
+
+    testWidgets('renders supported locales in native script', (WidgetTester tester) async {
+      await tester.pumpWidget(createSettingsScreen());
+      await tester.pumpAndSettle();
+
+      final dropdown = find.byKey(const ValueKey('appLanguageDropdown'));
+      await tester.ensureVisible(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      // Spot-check native names that sort near the top of the menu and are
+      // therefore visible without scrolling the (large) dropdown overlay.
+      expect(find.text('Deutsch'), findsWidgets);
+      expect(find.text('English'), findsWidgets);
+      expect(find.text('Català'), findsWidgets);
     });
   });
 }

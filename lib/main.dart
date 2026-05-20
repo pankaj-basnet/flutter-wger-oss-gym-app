@@ -182,79 +182,129 @@ class MainApp extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authAsync = ref.watch(authProvider);
-
-    return authAsync.when(
-      loading: () => const MaterialApp(home: SplashScreen()),
-      error: (error, stack) => MaterialApp(
-        home: Scaffold(body: Center(child: Text('$error'))),
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (ctx) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ExercisesProvider>(
+          create: (context) => ExercisesProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+          ),
+          update: (context, base, previous) =>
+              previous ?? ExercisesProvider(WgerBaseProvider(base)),
+        ),
+        ChangeNotifierProxyProvider2<AuthProvider, ExercisesProvider, RoutinesProvider>(
+          create: (context) => RoutinesProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+            Provider.of(context, listen: false),
+            [],
+          ),
+          update: (context, auth, exercises, previous) =>
+              previous ?? RoutinesProvider(WgerBaseProvider(auth), exercises, []),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, NutritionPlansProvider>(
+          create: (context) => NutritionPlansProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+            [],
+          ),
+          update: (context, auth, previous) =>
+              previous ?? NutritionPlansProvider(WgerBaseProvider(auth), []),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, MeasurementProvider>(
+          create: (context) => MeasurementProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+          ),
+          update: (context, base, previous) =>
+              previous ?? MeasurementProvider(WgerBaseProvider(base)),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, UserProvider>(
+          create: (context) => UserProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+          ),
+          update: (context, base, previous) => previous ?? UserProvider(WgerBaseProvider(base)),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, BodyWeightProvider>(
+          create: (context) => BodyWeightProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+          ),
+          update: (context, base, previous) =>
+              previous ?? BodyWeightProvider(WgerBaseProvider(base)),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, GalleryProvider>(
+          create: (context) => GalleryProvider(
+            Provider.of(context, listen: false),
+            [],
+          ),
+          update: (context, auth, previous) => previous ?? GalleryProvider(auth, []),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, AddExerciseProvider>(
+          create: (context) => AddExerciseProvider(
+            WgerBaseProvider(Provider.of(context, listen: false)),
+          ),
+          update: (context, base, previous) =>
+              previous ?? AddExerciseProvider(WgerBaseProvider(base)),
+        ),
+      ],
+      child: Consumer<AuthProvider>(
+        builder: (ctx, auth, _) {
+          final baseInstance = WgerBaseProvider(Provider.of(ctx, listen: false));
+          return Consumer<UserProvider>(
+            builder: (ctx, user, _) => riverpod.ProviderScope(
+              overrides: [
+                wgerBaseProvider.overrideWithValue(baseInstance),
+              ],
+              child: riverpod.Consumer(
+                builder: (rpCtx, ref, _) {
+                  return MaterialApp(
+                    title: 'wger',
+                    navigatorKey: navigatorKey,
+                    theme: wgerLightTheme,
+                    darkTheme: wgerDarkTheme,
+                    highContrastTheme: wgerLightThemeHc,
+                    highContrastDarkTheme: wgerDarkThemeHc,
+                    themeMode: user.themeMode,
+                    locale: user.userLocale,
+                    home: _getHomeScreen(auth),
+                    routes: {
+                      DashboardScreen.routeName: (ctx) => const DashboardScreen(),
+                      FormScreen.routeName: (ctx) => const FormScreen(),
+                      GalleryScreen.routeName: (ctx) => const GalleryScreen(),
+                      GymModeScreen.routeName: (ctx) => const GymModeScreen(),
+                      HomeTabsScreen.routeName: (ctx) => HomeTabsScreen(),
+                      MeasurementCategoriesScreen.routeName: (ctx) =>
+                          const MeasurementCategoriesScreen(),
+                      MeasurementEntriesScreen.routeName: (ctx) => const MeasurementEntriesScreen(),
+                      NutritionalPlansScreen.routeName: (ctx) => const NutritionalPlansScreen(),
+                      NutritionalDiaryScreen.routeName: (ctx) => const NutritionalDiaryScreen(),
+                      NutritionalPlanScreen.routeName: (ctx) => const NutritionalPlanScreen(),
+                      LogMealsScreen.routeName: (ctx) => const LogMealsScreen(),
+                      LogMealScreen.routeName: (ctx) => const LogMealScreen(),
+                      WeightScreen.routeName: (ctx) => const WeightScreen(),
+                      RoutineScreen.routeName: (ctx) => const RoutineScreen(),
+                      RoutineEditScreen.routeName: (ctx) => const RoutineEditScreen(),
+                      WorkoutLogsScreen.routeName: (ctx) => const WorkoutLogsScreen(),
+                      RoutineListScreen.routeName: (ctx) => const RoutineListScreen(),
+                      ExercisesScreen.routeName: (ctx) => const ExercisesScreen(),
+                      ExerciseDetailScreen.routeName: (ctx) => const ExerciseDetailScreen(),
+                      AddExerciseScreen.routeName: (ctx) => const AddExerciseScreen(),
+                      AboutPage.routeName: (ctx) => const AboutPage(),
+                      SettingsPage.routeName: (ctx) => const SettingsPage(),
+                      LogOverviewPage.routeName: (ctx) => const LogOverviewPage(),
+                      ConfigurePlatesScreen.routeName: (ctx) => const ConfigurePlatesScreen(),
+                      ConfigureDashboardWidgetsScreen.routeName: (ctx) =>
+                          const ConfigureDashboardWidgetsScreen(),
+                      TrophyScreen.routeName: (ctx) => const TrophyScreen(),
+                    },
+                    localeListResolutionCallback: resolveLocale,
+                    localizationsDelegates: AppLocalizations.localizationsDelegates,
+                    supportedLocales: AppLocalizations.supportedLocales,
+                  );
+                },
+              ),
+            ),
+          );
+        },
       ),
-      data: (authState) {
-        final themeMode = ref.watch(
-          appSettingsProvider.select((s) => s.value?.themeMode ?? ThemeMode.system),
-        );
-
-        return MaterialApp(
-          title: 'wger',
-          navigatorKey: navigatorKey,
-          theme: wgerLightTheme,
-          darkTheme: wgerDarkTheme,
-          highContrastTheme: wgerLightThemeHc,
-          highContrastDarkTheme: wgerDarkThemeHc,
-          themeMode: themeMode,
-          home: _getHomeScreen(authState),
-          routes: {
-            DashboardScreen.routeName: (ctx) => const DashboardScreen(),
-            FormScreen.routeName: (ctx) => const FormScreen(),
-            GalleryScreen.routeName: (ctx) => const GalleryScreen(),
-            GymModeScreen.routeName: (ctx) => const GymModeScreen(),
-            HomeTabsScreen.routeName: (ctx) => const HomeTabsScreen(),
-            MeasurementCategoriesScreen.routeName: (ctx) => const MeasurementCategoriesScreen(),
-            MeasurementEntriesScreen.routeName: (ctx) => const MeasurementEntriesScreen(),
-            NutritionalPlansScreen.routeName: (ctx) => const NutritionalPlansScreen(),
-            NutritionalDiaryScreen.routeName: (ctx) => const NutritionalDiaryScreen(),
-            NutritionalPlanScreen.routeName: (ctx) => const NutritionalPlanScreen(),
-            IngredientDetailScreen.routeName: (ctx) => const IngredientDetailScreen(),
-            IngredientsScreen.routeName: (ctx) => const IngredientsScreen(),
-            IngredientListsScreen.routeName: (context) {
-              final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
-              return IngredientListsScreen(
-                ingredientId: args?['ingredientId'] as int?,
-              );
-            },
-
-            IngredientListDetailScreen.routeName: (context) {
-              final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-              return IngredientListDetailScreen(
-                listId: args['listId'] as int,
-                listName: args['listName'] as String,
-                currentIngredientId: args['currentIngredientId'] as int?,
-              );
-            },
-            LogMealsScreen.routeName: (ctx) => const LogMealsScreen(),
-            LogMealScreen.routeName: (ctx) => const LogMealScreen(),
-            WeightScreen.routeName: (ctx) => const WeightScreen(),
-            RoutineScreen.routeName: (ctx) => const RoutineScreen(),
-            RoutineEditScreen.routeName: (ctx) => const RoutineEditScreen(),
-            WorkoutLogsScreen.routeName: (ctx) => const WorkoutLogsScreen(),
-            RoutineListScreen.routeName: (ctx) => const RoutineListScreen(),
-            ExercisesScreen.routeName: (ctx) => const ExercisesScreen(),
-            ExerciseDetailScreen.routeName: (ctx) => const ExerciseDetailScreen(),
-            AddExerciseScreen.routeName: (ctx) => const AddExerciseScreen(),
-            AboutPage.routeName: (ctx) => const AboutPage(),
-            SettingsPage.routeName: (ctx) => const SettingsPage(),
-            LogOverviewPage.routeName: (ctx) => const LogOverviewPage(),
-            ConfigurePlatesScreen.routeName: (ctx) => const ConfigurePlatesScreen(),
-            ConfigureDashboardWidgetsScreen.routeName: (ctx) =>
-                const ConfigureDashboardWidgetsScreen(),
-            TrophyScreen.routeName: (ctx) => const TrophyScreen(),
-          },
-          localeListResolutionCallback: resolveLocale,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-        );
-      },
     );
   }
 }

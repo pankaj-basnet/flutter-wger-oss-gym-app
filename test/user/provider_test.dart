@@ -18,17 +18,16 @@
 
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:wger/models/user/profile.dart';
-import 'package:wger/providers/app_settings_notifier.dart';
-import 'package:wger/providers/user_profile_notifier.dart';
-import 'package:wger/providers/user_profile_repository.dart';
+import 'package:wger/helpers/consts.dart';
+import 'package:wger/providers/base_provider.dart';
+import 'package:wger/providers/user.dart';
 
 import '../fixtures/fixture_reader.dart';
 import 'provider_test.mocks.dart';
@@ -167,33 +166,180 @@ void main() {
       ];
       await prefs.setString(PREFS_DASHBOARD_CONFIG, jsonEncode(customConfig));
 
-      // Fresh container so the keepAlive notifier builds with the just-written prefs.
-      container.dispose();
-      container = ProviderContainer(
-        overrides: [
-          userProfileRepositoryProvider.overrideWithValue(mockRepo),
-          appSettingsPrefsProvider.overrideWithValue(prefs),
-        ],
-      );
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 100));
 
-      final settings = await container.read(appSettingsProvider.future);
-      final items = settings.dashboardItems;
+      // assert
+      expect(newProvider.allDashboardWidgets[0], DashboardWidget.trophies);
+      expect(newProvider.allDashboardWidgets[1], DashboardWidget.nutrition);
+      expect(newProvider.allDashboardWidgets[2], DashboardWidget.routines);
+      expect(newProvider.allDashboardWidgets[3], DashboardWidget.weight);
 
-      // Loaded: [nutrition, routines], then defaults insert around:
-      // networkInfo (0) → 0, trophies (1) → 1, weight (4), measurements (5), calendar (6)
-      expect(items.allWidgets[0], DashboardWidget.networkInfo);
-      expect(items.allWidgets[1], DashboardWidget.trophies);
-      expect(items.allWidgets[2], DashboardWidget.nutrition);
-      expect(items.allWidgets[3], DashboardWidget.routines);
-      expect(items.allWidgets[4], DashboardWidget.weight);
+      expect(newProvider.isDashboardWidgetVisible(DashboardWidget.nutrition), true);
+      expect(newProvider.isDashboardWidgetVisible(DashboardWidget.routines), false);
 
-      expect(items.isWidgetVisible(DashboardWidget.nutrition), true);
-      expect(items.isWidgetVisible(DashboardWidget.routines), false);
-
-      // Missing items default to visible
-      expect(items.isWidgetVisible(DashboardWidget.networkInfo), true);
-      expect(items.isWidgetVisible(DashboardWidget.weight), true);
-      expect(items.isWidgetVisible(DashboardWidget.trophies), true);
+      expect(newProvider.isDashboardWidgetVisible(DashboardWidget.weight), true);
+      expect(newProvider.isDashboardWidgetVisible(DashboardWidget.trophies), true);
     });
   });
+
+  group('user locale', () {
+    test('defaults to null when no override saved', () async {
+      // act
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert: null means "follow system locale"
+      expect(userProvider.userLocale, null);
+    });
+
+    test('setUserLocale persists language-only code to prefs', () async {
+      // act
+      await userProvider.setUserLocale(const Locale('pl'));
+
+      // assert
+      expect(userProvider.userLocale, const Locale('pl'));
+      final stored = await SharedPreferencesAsync().getString(PREFS_USER_LOCALE);
+      expect(stored, 'pl');
+    });
+
+    test('setUserLocale persists country-coded locale (pt_BR)', () async {
+      // act
+      await userProvider.setUserLocale(const Locale('pt', 'BR'));
+
+      // assert
+      final stored = await SharedPreferencesAsync().getString(PREFS_USER_LOCALE);
+      expect(stored, 'pt_BR');
+    });
+
+    test('setUserLocale persists script-coded locale (zh_Hant)', () async {
+      // act
+      await userProvider.setUserLocale(const Locale.fromSubtags(
+        languageCode: 'zh',
+        scriptCode: 'Hant',
+      ));
+
+      // assert
+      final stored = await SharedPreferencesAsync().getString(PREFS_USER_LOCALE);
+      expect(stored, 'zh_Hant');
+    });
+
+    test('setUserLocale(null) clears the stored override', () async {
+      // arrange
+      await userProvider.setUserLocale(const Locale('de'));
+      expect(await SharedPreferencesAsync().getString(PREFS_USER_LOCALE), 'de');
+
+      // act
+      await userProvider.setUserLocale(null);
+
+      // assert
+      expect(userProvider.userLocale, null);
+      expect(await SharedPreferencesAsync().getString(PREFS_USER_LOCALE), null);
+    });
+
+    test('setUserLocale notifies listeners', () async {
+      // arrange
+      var notifyCount = 0;
+      userProvider.addListener(() => notifyCount++);
+
+      // act
+      await userProvider.setUserLocale(const Locale('fr'));
+
+      // assert
+      expect(notifyCount, greaterThanOrEqualTo(1));
+    });
+
+    test('loads previously stored language-only locale on construction', () async {
+      // arrange
+      final prefs = SharedPreferencesAsync();
+      await prefs.setString(PREFS_USER_LOCALE, 'de');
+
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert
+      expect(newProvider.userLocale, const Locale('de'));
+    });
+
+    test('loads previously stored country-coded locale (pt_BR)', () async {
+      // arrange
+      final prefs = SharedPreferencesAsync();
+      await prefs.setString(PREFS_USER_LOCALE, 'pt_BR');
+
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert
+      expect(newProvider.userLocale?.languageCode, 'pt');
+      expect(newProvider.userLocale?.countryCode, 'BR');
+    });
+
+    test('loads previously stored script-coded locale (zh_Hant)', () async {
+      // arrange
+      final prefs = SharedPreferencesAsync();
+      await prefs.setString(PREFS_USER_LOCALE, 'zh_Hant');
+
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert
+      expect(newProvider.userLocale?.languageCode, 'zh');
+      expect(newProvider.userLocale?.scriptCode, 'Hant');
+    });
+
+    test('falls back to language-only match for unknown country code', () async {
+      // arrange: "pl_XX" is not a supported subtag; should fall back to "pl"
+      final prefs = SharedPreferencesAsync();
+      await prefs.setString(PREFS_USER_LOCALE, 'pl_XX');
+
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert
+      expect(newProvider.userLocale, const Locale('pl'));
+    });
+
+    test('returns null for completely unsupported locale tag', () async {
+      // arrange
+      final prefs = SharedPreferencesAsync();
+      await prefs.setString(PREFS_USER_LOCALE, 'xx_YY');
+
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert
+      expect(newProvider.userLocale, null);
+    });
+
+    test('returns null for empty stored value', () async {
+      // arrange
+      final prefs = SharedPreferencesAsync();
+      await prefs.setString(PREFS_USER_LOCALE, '');
+
+      // act
+      final newProvider = UserProvider(mockWgerBaseProvider, prefs: prefs);
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // assert
+      expect(newProvider.userLocale, null);
+    });
+
+    test('clear() does NOT reset the user locale (preference survives logout)', () async {
+      // arrange
+      await userProvider.setUserLocale(const Locale('it'));
+      expect(userProvider.userLocale, const Locale('it'));
+
+      // act
+      userProvider.clear();
+
+      // assert: clear() resets profile but locale preference is intentionally kept
+      expect(userProvider.userLocale, const Locale('it'));
+    });
+  });
+
 }
