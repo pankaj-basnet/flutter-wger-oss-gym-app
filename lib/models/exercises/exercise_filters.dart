@@ -1,11 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:wger/models/exercises/category.dart';
+import 'package:wger/providers/nutrition_repository.dart' show IngredientSearchLanguage;
 
-enum ExerciseSearchLanguage {
-  current,
-  currentAndEnglish,
-  all,
-}
+typedef ExerciseSearchLanguage = IngredientSearchLanguage;
 
 enum ExerciseSearchMode {
   exact,

@@ -24,6 +24,7 @@ import 'package:wger/helpers/consts.dart';
 import 'package:wger/models/exercises/category.dart';
 import 'package:wger/models/exercises/equipment.dart';
 import 'package:wger/models/exercises/exercise.dart';
+import 'package:wger/models/exercises/exercise_filters.dart';
 import 'package:wger/providers/exercise_data.dart';
 import 'package:wger/providers/exercise_state.dart';
 import 'package:wger/providers/wger_base.dart';
@@ -82,7 +83,7 @@ final class ExerciseStateNotifier extends _$ExerciseStateNotifier {
       isLoading: false,
     );
 
-    final filters = _initializeFilters(newState.filters, equipment, categories);
+    final filters = _initializeFilters(newState.filters, newState.equipment, newState.categories);
     final filteredExercises = _applyFilters(exercises, filters);
     return newState.copyWith(
       filters: filters,
@@ -118,7 +119,11 @@ final class ExerciseStateNotifier extends _$ExerciseStateNotifier {
     return filters;
   }
 
-  void setFilters(Filters filters, [String languageCode = LANGUAGE_SHORT_ENGLISH]) {
+  void setFilters(
+    Filters filters,
+    ExerciseFilters extraFilters, [
+    String languageCode = LANGUAGE_SHORT_ENGLISH,
+  ]) {
     final filtered = _applyFilters(state.exercises, filters, languageCode: languageCode);
     state = state.copyWith(filters: filters, filteredExercises: filtered);
   }

@@ -19,6 +19,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wger/l10n/generated/app_localizations.dart';
+import 'package:wger/providers/exercise_filters_riverpod.dart';
 import 'package:wger/providers/exercise_state_notifier.dart';
 import 'package:wger/screens/add_exercise_screen.dart';
 
@@ -44,11 +45,14 @@ class _FilterRowState extends ConsumerState<FilterRow> {
       ..addListener(() {
         final text = _exerciseNameController.text;
         final currentFilters = ref.read(exerciseStateProvider).filters;
+        final extraFilters = ref.read(exerciseFiltersSyncProvider);
+
         if (currentFilters.searchTerm != text) {
           ref
               .read(exerciseStateProvider.notifier)
               .setFilters(
                 currentFilters.copyWith(searchTerm: text),
+                extraFilters,
                 Localizations.localeOf(context).languageCode,
               );
         }
@@ -75,6 +79,7 @@ class _FilterRowState extends ConsumerState<FilterRow> {
           ),
           Row(
             children: [
+              _filterButton(context),
               IconButton(
                 onPressed: () async {
                   showModalBottomSheet(
@@ -115,6 +120,124 @@ class _FilterRowState extends ConsumerState<FilterRow> {
           ),
         ],
       ),
+    );
+  }
+
+  
+  /// The filter icon button — opens dialog with language, category, and search mode options.
+  /// Mirrors the filterButton() in IngredientTypeahead.
+  Widget _filterButton(BuildContext context) {
+    final filters = ref.watch(exerciseFiltersSyncProvider);
+    final i18n = AppLocalizations.of(context);
+    final languageCode = Localizations.localeOf(context).languageCode;
+    final isEnglish = languageCode == LANGUAGE_SHORT_ENGLISH;
+
+    // If the device is in English and currentAndEnglish is set, switch to current
+    if (isEnglish && filters.searchLanguage == ExerciseSearchLanguage.currentAndEnglish) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(exerciseFiltersProvider.notifier).chooseLanguage(ExerciseSearchLanguage.current);
+      });
+    }
+
+    return IconButton(
+      icon: const Icon(Icons.tune),
+      color: Colors.blueGrey,
+      onPressed: () {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return Consumer(
+                  builder: (context, ref, _) {
+                    final filters = ref.watch(exerciseFiltersSyncProvider);
+
+                    return AlertDialog(
+                      title: Text(i18n.filter),
+                      content: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Language option — same as ingredient filter
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(i18n.language),
+                              subtitle: Builder(
+                                builder: (context) {
+                                  final items = <DropdownMenuItem<ExerciseSearchLanguage>>[
+                                    DropdownMenuItem(
+                                      value: ExerciseSearchLanguage.current,
+                                      child: Text(languageCode),
+                                    ),
+                                    if (!isEnglish)
+                                      DropdownMenuItem(
+                                        value: ExerciseSearchLanguage.currentAndEnglish,
+                                        child: Text('$languageCode + EN'),
+                                      ),
+                                    const DropdownMenuItem(
+                                      value: ExerciseSearchLanguage.all,
+                                      child: Text('All languages'),
+                                    ),
+                                  ];
+
+                                  ExerciseSearchLanguage? selected = filters.searchLanguage;
+                                  final containsSelected = items.any((it) => it.value == selected);
+                                  if (!containsSelected) selected = null;
+
+                                  return DropdownButton<ExerciseSearchLanguage>(
+                                    value: selected,
+                                    isExpanded: true,
+                                    onChanged: (val) {
+                                      setDialogState(() {
+                                        if (val != null) {
+                                          ref
+                                              .read(exerciseFiltersProvider.notifier)
+                                              .chooseLanguage(val);
+                                        }
+                                      });
+                                    },
+                                    items: items,
+                                  );
+                                },
+                              ),
+                            ),
+                            // Search mode toggle — new for exercises
+                            SwitchListTile(
+                              title: const Text('Exact name match'),
+                              subtitle: const Text(
+                                'Off: fuzzy search. On: exact name only.',
+                              ),
+                              value: filters.searchMode == ExerciseSearchMode.exact,
+                              contentPadding: EdgeInsets.zero,
+                              onChanged: (val) {
+                                setDialogState(() {
+                                  ref
+                                      .read(exerciseFiltersProvider.notifier)
+                                      .chooseSearchMode(
+                                        val
+                                            ? ExerciseSearchMode.exact
+                                            : ExerciseSearchMode.fulltext,
+                                      );
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
