@@ -65,6 +65,7 @@ class CategoriesCard extends StatelessWidget {
                 currentCategory.unit,
               ),
             ),
+            
             if (entries7dAvg.isNotEmpty && !currentCategory.metricType.isSummedPerDay)
               MeasurementOverallChangeWidget(
                 entries7dAvg.first,

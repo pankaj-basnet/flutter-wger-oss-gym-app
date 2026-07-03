@@ -23,7 +23,6 @@ import 'package:wger/core/charts.dart';
 import 'package:wger/core/consts.dart';
 import 'package:wger/core/formatting/formatting.dart';
 import 'package:wger/l10n/generated/app_localizations.dart';
-import 'package:wger/models/measurements/measurement_entry.dart';
 
 class MeasurementOverallChangeWidget extends StatelessWidget {
   final MeasurementChartEntry _first;
