@@ -27,75 +27,92 @@ import 'package:wger/core/widgets/dashboard/widgets/nutrition.dart';
 import 'package:wger/core/widgets/dashboard/widgets/routines.dart';
 import 'package:wger/core/widgets/dashboard/widgets/trophies.dart';
 import 'package:wger/core/widgets/dashboard/widgets/weight.dart';
+import 'package:wger/features/github/screen/pr_list_screen.dart';
 import 'package:wger/l10n/generated/app_localizations.dart';
 
-class DashboardScreen extends ConsumerWidget {
+
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
-
   static const routeName = '/dashboard';
-
-  Widget _getDashboardWidget(DashboardWidget widget) {
-    switch (widget) {
-      case DashboardWidget.routines:
-        return const DashboardRoutineWidget();
-      case DashboardWidget.weight:
-        return const DashboardWeightWidget();
-      case DashboardWidget.measurements:
-        return const DashboardMeasurementWidget();
-      case DashboardWidget.calendar:
-        return const DashboardCalendarWidget();
-      case DashboardWidget.nutrition:
-        return const DashboardNutritionWidget();
-      case DashboardWidget.trophies:
-        return const DashboardTrophiesWidget();
-    }
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final width = MediaQuery.sizeOf(context).width;
-    final isMobile = width < MATERIAL_XS_BREAKPOINT;
-    final visibleWidgets = ref.watch(
-      appSettingsProvider.select(
-        (s) => s.value?.dashboardItems.visibleWidgets ?? const <DashboardWidget>[],
-      ),
-    );
+  ConsumerState<ConsumerStatefulWidget> createState() => _DashboardScreenState();
+}
 
-    late final int crossAxisCount;
-    if (width < MATERIAL_XS_BREAKPOINT) {
-      crossAxisCount = 1;
-    } else if (width < MATERIAL_MD_BREAKPOINT) {
-      crossAxisCount = 2;
-    } else if (width < MATERIAL_LG_BREAKPOINT) {
-      crossAxisCount = 3;
-    } else {
-      crossAxisCount = 4;
-    }
-
-    return Scaffold(
-      appBar: MainAppBar(AppLocalizations.of(context).labelDashboard),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: MATERIAL_LG_BREAKPOINT),
-          child: isMobile
-              ? ListView.builder(
-                  padding: const EdgeInsets.all(10),
-                  itemBuilder: (context, index) => _getDashboardWidget(visibleWidgets[index]),
-                  itemCount: visibleWidgets.length,
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(10),
-                  itemBuilder: (context, index) => SingleChildScrollView(
-                    child: _getDashboardWidget(visibleWidgets[index]),
-                  ),
-                  itemCount: visibleWidgets.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    childAspectRatio: 0.7,
-                  ),
-                ),
-        ),
-      ),
-    );
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return const PrListScreen();
   }
 }
+
+// class DashboardScreen extends ConsumerWidget {
+//   const DashboardScreen({super.key});
+
+//   static const routeName = '/dashboard';
+
+//   Widget _getDashboardWidget(DashboardWidget widget) {
+//     switch (widget) {
+//       case DashboardWidget.routines:
+//         return const DashboardRoutineWidget();
+//       case DashboardWidget.weight:
+//         return const DashboardWeightWidget();
+//       case DashboardWidget.measurements:
+//         return const DashboardMeasurementWidget();
+//       case DashboardWidget.calendar:
+//         return const DashboardCalendarWidget();
+//       case DashboardWidget.nutrition:
+//         return const DashboardNutritionWidget();
+//       case DashboardWidget.trophies:
+//         return const DashboardTrophiesWidget();
+//     }
+//   }
+
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     final width = MediaQuery.sizeOf(context).width;
+//     final isMobile = width < MATERIAL_XS_BREAKPOINT;
+//     final visibleWidgets = ref.watch(
+//       appSettingsProvider.select(
+//         (s) => s.value?.dashboardItems.visibleWidgets ?? const <DashboardWidget>[],
+//       ),
+//     );
+
+//     late final int crossAxisCount;
+//     if (width < MATERIAL_XS_BREAKPOINT) {
+//       crossAxisCount = 1;
+//     } else if (width < MATERIAL_MD_BREAKPOINT) {
+//       crossAxisCount = 2;
+//     } else if (width < MATERIAL_LG_BREAKPOINT) {
+//       crossAxisCount = 3;
+//     } else {
+//       crossAxisCount = 4;
+//     }
+
+//     return Scaffold(
+//       appBar: MainAppBar(AppLocalizations.of(context).labelDashboard),
+//       body: Center(
+//         child: ConstrainedBox(
+//           constraints: const BoxConstraints(maxWidth: MATERIAL_LG_BREAKPOINT),
+//           child: isMobile
+//               ? ListView.builder(
+//                   padding: const EdgeInsets.all(10),
+//                   itemBuilder: (context, index) => _getDashboardWidget(visibleWidgets[index]),
+//                   itemCount: visibleWidgets.length,
+//                 )
+//               : GridView.builder(
+//                   padding: const EdgeInsets.all(10),
+//                   itemBuilder: (context, index) => SingleChildScrollView(
+//                     child: _getDashboardWidget(visibleWidgets[index]),
+//                   ),
+//                   itemCount: visibleWidgets.length,
+//                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+//                     crossAxisCount: crossAxisCount,
+//                     childAspectRatio: 0.7,
+//                   ),
+//                 ),
+//         ),
+//       ),
+//     );
+//   }
+// }

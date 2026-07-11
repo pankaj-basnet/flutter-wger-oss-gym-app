@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:wger/core/widgets/async_value_widget.dart';
 import 'package:wger/core/widgets/dashboard/widgets/nothing_found.dart';
+import 'package:wger/features/github/screen/pr_list_screen.dart';
 import 'package:wger/features/measurements/models/measurement_category.dart';
 import 'package:wger/features/measurements/providers/measurement_notifier.dart';
 import 'package:wger/features/measurements/screens/measurement_categories_screen.dart';
@@ -29,114 +30,129 @@ import 'package:wger/features/measurements/widgets/categories_card.dart';
 import 'package:wger/features/measurements/widgets/forms.dart';
 import 'package:wger/l10n/generated/app_localizations.dart';
 
+
 class DashboardMeasurementWidget extends ConsumerStatefulWidget {
-  const DashboardMeasurementWidget();
+  const DashboardMeasurementWidget({super.key});
 
   @override
-  _DashboardMeasurementWidgetState createState() => _DashboardMeasurementWidgetState();
+  ConsumerState<ConsumerStatefulWidget> createState() => _DashboardMeasurementWidgetState();
 }
 
 class _DashboardMeasurementWidgetState extends ConsumerState<DashboardMeasurementWidget> {
-  int _current = 0;
-  final _controller = CarouselSliderController();
-
   @override
   Widget build(BuildContext context) {
-    return AsyncValueWidget<List<MeasurementCategory>>(
-      value: ref.watch(measurementProvider),
-      loggerName: 'DashboardMeasurementWidget',
-      data: (allCategories) {
-        // Children of multi-value groups are shown inside their parent's card
-        final categoriesList = allCategories.where((c) => c.parentId == null).toList();
-
-        if (categoriesList.isEmpty) {
-          return NothingFound(
-            AppLocalizations.of(context).moreMeasurementEntries,
-            AppLocalizations.of(context).newEntry,
-            const MeasurementCategoryForm(),
-          );
-        }
-
-        return Card(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(
-                  AppLocalizations.of(context).measurements,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                leading: FaIcon(
-                  FontAwesomeIcons.chartLine,
-                  color: Theme.of(context).textTheme.headlineSmall!.color,
-                ),
-                // TODO: this icon feels out of place and inconsistent with all
-                // other dashboard widgets.
-                // maybe we should just add a "Go to all" at the bottom of the widget
-                trailing: IconButton(
-                  icon: const Icon(Icons.arrow_forward),
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    MeasurementCategoriesScreen.routeName,
-                  ),
-                ),
-              ),
-              Column(
-                children: [
-                  Column(
-                    children: [
-                      CarouselSlider(
-                        items: categoriesList
-                            .map<Widget>((item) => CategoriesCard(item, elevation: 0))
-                            .toList(),
-                        carouselController: _controller,
-                        options: CarouselOptions(
-                          autoPlay: false,
-                          enlargeCenterPage: false,
-                          viewportFraction: 1,
-                          enableInfiniteScroll: false,
-                          aspectRatio: 1.1,
-                          onPageChanged: (index, reason) {
-                            setState(() {
-                              _current = index;
-                            });
-                          },
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: categoriesList.asMap().entries.map((entry) {
-                            return GestureDetector(
-                              onTap: () => _controller.animateToPage(entry.key),
-                              child: Container(
-                                width: 12.0,
-                                height: 12.0,
-                                margin: const EdgeInsets.symmetric(
-                                  vertical: 8.0,
-                                  horizontal: 4.0,
-                                ),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Theme.of(context).textTheme.headlineSmall!.color!
-                                      .withValues(
-                                        alpha: _current == entry.key ? 0.9 : 0.4,
-                                      ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    return const PrListScreen();
   }
 }
+
+// class DashboardMeasurementWidget extends ConsumerStatefulWidget {
+//   const DashboardMeasurementWidget();
+
+//   @override
+//   _DashboardMeasurementWidgetState createState() => _DashboardMeasurementWidgetState();
+// }
+
+// class _DashboardMeasurementWidgetState extends ConsumerState<DashboardMeasurementWidget> {
+//   int _current = 0;
+//   final _controller = CarouselSliderController();
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return AsyncValueWidget<List<MeasurementCategory>>(
+//       value: ref.watch(measurementProvider),
+//       loggerName: 'DashboardMeasurementWidget',
+//       data: (allCategories) {
+//         // Children of multi-value groups are shown inside their parent's card
+//         final categoriesList = allCategories.where((c) => c.parentId == null).toList();
+
+//         if (categoriesList.isEmpty) {
+//           return NothingFound(
+//             AppLocalizations.of(context).moreMeasurementEntries,
+//             AppLocalizations.of(context).newEntry,
+//             const MeasurementCategoryForm(),
+//           );
+//         }
+
+//         return Card(
+//           child: Column(
+//             mainAxisSize: MainAxisSize.min,
+//             children: [
+//               ListTile(
+//                 title: Text(
+//                   AppLocalizations.of(context).measurements,
+//                   style: Theme.of(context).textTheme.headlineSmall,
+//                 ),
+//                 leading: FaIcon(
+//                   FontAwesomeIcons.chartLine,
+//                   color: Theme.of(context).textTheme.headlineSmall!.color,
+//                 ),
+//                 // TODO: this icon feels out of place and inconsistent with all
+//                 // other dashboard widgets.
+//                 // maybe we should just add a "Go to all" at the bottom of the widget
+//                 trailing: IconButton(
+//                   icon: const Icon(Icons.arrow_forward),
+//                   onPressed: () => Navigator.pushNamed(
+//                     context,
+//                     MeasurementCategoriesScreen.routeName,
+//                   ),
+//                 ),
+//               ),
+//               Column(
+//                 children: [
+//                   Column(
+//                     children: [
+//                       CarouselSlider(
+//                         items: categoriesList
+//                             .map<Widget>((item) => CategoriesCard(item, elevation: 0))
+//                             .toList(),
+//                         carouselController: _controller,
+//                         options: CarouselOptions(
+//                           autoPlay: false,
+//                           enlargeCenterPage: false,
+//                           viewportFraction: 1,
+//                           enableInfiniteScroll: false,
+//                           aspectRatio: 1.1,
+//                           onPageChanged: (index, reason) {
+//                             setState(() {
+//                               _current = index;
+//                             });
+//                           },
+//                         ),
+//                       ),
+//                       Padding(
+//                         padding: const EdgeInsets.only(bottom: 10),
+//                         child: Row(
+//                           mainAxisAlignment: MainAxisAlignment.center,
+//                           children: categoriesList.asMap().entries.map((entry) {
+//                             return GestureDetector(
+//                               onTap: () => _controller.animateToPage(entry.key),
+//                               child: Container(
+//                                 width: 12.0,
+//                                 height: 12.0,
+//                                 margin: const EdgeInsets.symmetric(
+//                                   vertical: 8.0,
+//                                   horizontal: 4.0,
+//                                 ),
+//                                 decoration: BoxDecoration(
+//                                   shape: BoxShape.circle,
+//                                   color: Theme.of(context).textTheme.headlineSmall!.color!
+//                                       .withValues(
+//                                         alpha: _current == entry.key ? 0.9 : 0.4,
+//                                       ),
+//                                 ),
+//                               ),
+//                             );
+//                           }).toList(),
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                 ],
+//               ),
+//             ],
+//           ),
+//         );
+//       },
+//     );
+//   }
+// }

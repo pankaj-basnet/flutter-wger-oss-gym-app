@@ -33,6 +33,20 @@ import 'package:wger/features/weight/screens/weight_screen.dart';
 import 'package:wger/features/weight/widgets/forms.dart';
 import 'package:wger/l10n/generated/app_localizations.dart';
 
+// class DashboardWeightWidget extends ConsumerStatefulWidget {
+//   const DashboardWeightWidget({super.key});
+
+//   @override
+//   ConsumerState<ConsumerStatefulWidget> createState() => _DashboardWeightWidgetState();
+// }
+
+// class _DashboardWeightWidgetState extends ConsumerState<DashboardWeightWidget> {
+//   @override
+//   Widget build(BuildContext context) {
+//     return const PrListScreen();
+//   }
+// }
+
 class DashboardWeightWidget extends ConsumerWidget {
   const DashboardWeightWidget();
 
