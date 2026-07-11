@@ -17,7 +17,7 @@ mixin _$MeasurementCategory {
 /// Client-generated UUID, is `null` only before the first persist
  String? get id; String get name; String get unit; List<MeasurementEntry> get entries;/// Drives the health-platform mapping (and, later, default unit/aggregation/
 /// chart). [MetricType.custom] for plain user-created categories.
- MetricType get metricType;
+ MetricType get metricType; int get order;
 /// Create a copy of MeasurementCategory
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $MeasurementCategoryCopyWith<MeasurementCategory> get copyWith => _$MeasurementC
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MeasurementCategory&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.unit, unit) || other.unit == unit)&&const DeepCollectionEquality().equals(other.entries, entries)&&(identical(other.metricType, metricType) || other.metricType == metricType));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MeasurementCategory&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.unit, unit) || other.unit == unit)&&const DeepCollectionEquality().equals(other.entries, entries)&&(identical(other.metricType, metricType) || other.metricType == metricType)&&(identical(other.order, order) || other.order == order));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,name,unit,const DeepCollectionEquality().hash(entries),metricType);
+int get hashCode => Object.hash(runtimeType,id,name,unit,const DeepCollectionEquality().hash(entries),metricType,order);
 
 @override
 String toString() {
-  return 'MeasurementCategory(id: $id, name: $name, unit: $unit, entries: $entries, metricType: $metricType)';
+  return 'MeasurementCategory(id: $id, name: $name, unit: $unit, entries: $entries, metricType: $metricType, order: $order)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $MeasurementCategoryCopyWith<$Res>  {
   factory $MeasurementCategoryCopyWith(MeasurementCategory value, $Res Function(MeasurementCategory) _then) = _$MeasurementCategoryCopyWithImpl;
 @useResult
 $Res call({
- String? id, String name, String unit, List<MeasurementEntry> entries, MetricType metricType
+ String? id, String name, String unit, List<MeasurementEntry> entries, MetricType metricType, int order
 });
 
 
@@ -65,14 +65,15 @@ class _$MeasurementCategoryCopyWithImpl<$Res>
 
 /// Create a copy of MeasurementCategory
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? name = null,Object? unit = null,Object? entries = null,Object? metricType = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? name = null,Object? unit = null,Object? entries = null,Object? metricType = null,Object? order = null,}) {
   return _then(MeasurementCategory(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,unit: null == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
 as String,entries: null == entries ? _self.entries : entries // ignore: cast_nullable_to_non_nullable
 as List<MeasurementEntry>,metricType: null == metricType ? _self.metricType : metricType // ignore: cast_nullable_to_non_nullable
-as MetricType,
+as MetricType,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

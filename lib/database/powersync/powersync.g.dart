@@ -19,7 +19,9 @@ final class PowerSyncInstanceProvider
           PowerSyncDatabase,
           FutureOr<PowerSyncDatabase>
         >
-    with $FutureModifier<PowerSyncDatabase>, $FutureProvider<PowerSyncDatabase> {
+    with
+        $FutureModifier<PowerSyncDatabase>,
+        $FutureProvider<PowerSyncDatabase> {
   PowerSyncInstanceProvider._()
     : super(
         from: null,

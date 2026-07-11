@@ -1,0 +1,245 @@
+diff --git a/lib/database/powersync/tables/measurements.dart b/lib/database/powersync/tables/measurements.dart
+index b5989327..7e6e0aee 100644
+--- a/lib/database/powersync/tables/measurements.dart
++++ b/lib/database/powersync/tables/measurements.dart
+@@ -34,11 +34,17 @@ class MeasurementCategoryTable extends Table {
+   TextColumn get unit => text()();
+   TextColumn get metricType =>
+       text().named('metric_type').map(const MeasurementMetricTypeConverter())();
++  IntColumn get order => integer().nullable()();
+ }
+ 
+ const PowersyncMeasurementCategoryTable = ps.Table(
+   'measurements_category',
+-  [ps.Column.text('name'), ps.Column.text('unit'), ps.Column.text('metric_type')],
++  [
++    ps.Column.text('name'),
++    ps.Column.text('unit'),
++    ps.Column.text('metric_type'),
++    ps.Column.integer('order'),
++  ],
+ );
+ 
+ @UseRowClass(MeasurementEntry)
+diff --git a/lib/features/measurements/models/measurement_category.dart b/lib/features/measurements/models/measurement_category.dart
+index 47f72165..3bf552ff 100644
+--- a/lib/features/measurements/models/measurement_category.dart
++++ b/lib/features/measurements/models/measurement_category.dart
+@@ -103,12 +103,16 @@ class MeasurementCategory with _$MeasurementCategory {
+   @override
+   final MetricType metricType;
+ 
++  @override
++  final int order;
++
+   MeasurementCategory({
+     this.id,
+     this.name = '',
+     this.unit = '',
+     this.entries = const [],
+     this.metricType = MetricType.custom,
++    this.order = 0,
+   });
+ 
+   MeasurementEntry findEntryById(String id) {
+@@ -125,6 +129,7 @@ class MeasurementCategory with _$MeasurementCategory {
+       name: Value(name),
+       unit: Value(unit),
+       metricType: Value(metricType),
++      order: Value(order),
+     );
+   }
+ }
+diff --git a/lib/features/measurements/providers/measurement_notifier.dart b/lib/features/measurements/providers/measurement_notifier.dart
+index 8c8f6471..59d8f4e6 100644
+--- a/lib/features/measurements/providers/measurement_notifier.dart
++++ b/lib/features/measurements/providers/measurement_notifier.dart
+@@ -84,4 +84,18 @@ final class MeasurementNotifier extends _$MeasurementNotifier {
+   Future<void> addCategory(MeasurementCategory category) async {
+     await _repo.addLocalDriftCategory(category);
+   }
++
++  Future<void> setCategoryOrder(int oldIndex, int newIndex) async {
++    final categories = state.asData?.value;
++    if (categories == null) return;
++    if (oldIndex < newIndex) newIndex -= 1;
++
++    final reordered = List<MeasurementCategory>.from(categories);
++    final moved = reordered.removeAt(oldIndex);
++    reordered.insert(newIndex, moved);
++
++    for (int i = 0; i < reordered.length; i++) {
++      await _repo.reorderCategory(reordered[i].id!, i);
++    }
++  }
+ }
+diff --git a/lib/features/measurements/providers/measurement_repository.dart b/lib/features/measurements/providers/measurement_repository.dart
+index 06ce035f..55216cb1 100644
+--- a/lib/features/measurements/providers/measurement_repository.dart
++++ b/lib/features/measurements/providers/measurement_repository.dart
+@@ -50,8 +50,9 @@ class MeasurementRepository {
+             _db.measurementEntryTable.categoryId.equalsExp(_db.measurementCategoryTable.id),
+           ),
+         ])..orderBy([
++          OrderingTerm(expression: _db.measurementCategoryTable.order),
+           OrderingTerm(expression: _db.measurementCategoryTable.name),
+-          OrderingTerm(expression: _db.measurementEntryTable.date, mode: OrderingMode.desc),
++          // OrderingTerm(expression: _db.measurementEntryTable.date, mode: OrderingMode.desc),
+         ]);
+ 
+     return joined.watch().map((rows) {
+@@ -118,4 +119,12 @@ class MeasurementRepository {
+     _logger.finer('Adding local measurement category ${category.name}');
+     await _db.into(_db.measurementCategoryTable).insert(category.toCompanion());
+   }
++
++  Future<void> reorderCategory(String id, int newOrder) async {
++    _logger.finer('Reording category id $id to order $newOrder');
++    final stmt = _db.update(_db.measurementCategoryTable)..where((t) => t.id.equals(id));
++    await stmt.write(
++      MeasurementCategoryTableCompanion(order: Value(newOrder)),
++    );
++  }
+ }
+diff --git a/lib/features/measurements/screens/measurement_categories_screen.dart b/lib/features/measurements/screens/measurement_categories_screen.dart
+index 985f020f..abe8aa64 100644
+--- a/lib/features/measurements/screens/measurement_categories_screen.dart
++++ b/lib/features/measurements/screens/measurement_categories_screen.dart
+@@ -19,6 +19,7 @@
+ import 'package:flutter/material.dart';
+ import 'package:wger/core/form_screen.dart';
+ import 'package:wger/core/wide_screen_wrapper.dart';
++import 'package:wger/features/measurements/screens/measurement_category_sort_screen.dart';
+ import 'package:wger/features/measurements/widgets/categories.dart';
+ import 'package:wger/features/measurements/widgets/forms.dart';
+ import 'package:wger/l10n/generated/app_localizations.dart';
+@@ -30,8 +31,19 @@ class MeasurementCategoriesScreen extends StatelessWidget {
+ 
+   @override
+   Widget build(BuildContext context) {
++    final i18n = AppLocalizations.of(context);
+     return Scaffold(
+-      appBar: AppBar(title: Text(AppLocalizations.of(context).measurements)),
++      appBar: AppBar(
++        title: Text(AppLocalizations.of(context).measurements),
++        actions: [
++          IconButton(
++            icon: Icon(Icons.sort),
++            tooltip: i18n.reorderCategories,
++            onPressed: () =>
++                Navigator.of(context).pushNamed(MeasurementCategorySortScreen.routeName),
++          ),
++        ],
++      ),
+       floatingActionButton: FloatingActionButton(
+         child: const Icon(Icons.add, color: Colors.white),
+         onPressed: () {
+@@ -39,7 +51,7 @@ class MeasurementCategoriesScreen extends StatelessWidget {
+             context,
+             FormScreen.routeName,
+             arguments: FormScreenArguments(
+-              AppLocalizations.of(context).newEntry,
++              i18n.newEntry,
+               const MeasurementCategoryForm(),
+             ),
+           );
+diff --git a/lib/features/measurements/screens/measurement_category_sort_screen.dart b/lib/features/measurements/screens/measurement_category_sort_screen.dart
+new file mode 100644
+index 00000000..cbf4ef07
+--- /dev/null
++++ b/lib/features/measurements/screens/measurement_category_sort_screen.dart
+@@ -0,0 +1,59 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++import 'package:wger/core/wide_screen_wrapper.dart';
++import 'package:wger/core/widgets/async_value_widget.dart';
++import 'package:wger/features/measurements/models/measurement_category.dart';
++import 'package:wger/features/measurements/providers/measurement_notifier.dart';
++import 'package:wger/l10n/generated/app_localizations.dart';
++
++class MeasurementCategorySortScreen extends ConsumerWidget {
++  static const routeName = '/measurement-categories-sort';
++
++  const MeasurementCategorySortScreen({super.key});
++
++  @override
++  Widget build(BuildContext context, WidgetRef ref) {
++    final i18n = AppLocalizations.of(context);
++    return Scaffold(
++      appBar: AppBar(
++        title: Text(i18n.reorderCategories),
++      ),
++      body: WidescreenWrapper(
++        child: AsyncValueWidget<List<MeasurementCategory>>(
++          value: ref.watch(measurementProvider),
++          loggerName: 'MeasurementCategorySortScreen',
++          data: (categories) => _SortableList(categories),
++        ),
++      ),
++    );
++  }
++}
++
++class _SortableList extends ConsumerWidget {
++  final List<MeasurementCategory> _categories;
++  const _SortableList(this._categories);
++
++  @override
++  Widget build(BuildContext context, WidgetRef ref) {
++    final notifier = ref.read(measurementProvider.notifier);
++    return ReorderableListView.builder(
++      // physics: const NeverScrollableScrollPhysics(),
++      // shrinkWrap: true,
++      // buildDefaultDragHandles: false,
++      itemCount: _categories.length,
++      itemBuilder: (context, index) {
++        final category = _categories[index];
++        return ListTile(
++          key: ValueKey(category.id),
++          title: Text(category.name),
++          subtitle: Text(category.unit),
++          trailing: ReorderableDelayedDragStartListener(
++            index: index,
++            child: const Icon(Icons.drag_handle),
++          ),
++        );
++      },
++      onReorderItem: (oldIndex, newIndex) => notifier.setCategoryOrder(oldIndex, newIndex),
++    );
++  }
++}
+diff --git a/lib/l10n/app_en.arb b/lib/l10n/app_en.arb
+index 4e45bb7d..90930f8f 100644
+--- a/lib/l10n/app_en.arb
++++ b/lib/l10n/app_en.arb
+@@ -546,6 +546,10 @@
+   "@metricType": {
+     "description": "Metric type for a measurement category"
+   },
++  "reorderCategories": "Reorder categories",
++  "@reorderCategories": {
++    "description": "measurement categories reordering"
++  },
+   "metricCustom": "Custom",
+   "@metricCustom": {
+     "description": "Label for custom metric type"
+diff --git a/lib/main.dart b/lib/main.dart
+index 74d053ce..2a5cb29f 100644
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -51,6 +51,7 @@ import 'package:wger/features/exercises/screens/exercise_screen.dart';
+ import 'package:wger/features/exercises/screens/exercises_screen.dart';
+ import 'package:wger/features/gallery/screens/gallery_screen.dart';
+ import 'package:wger/features/measurements/screens/measurement_categories_screen.dart';
++import 'package:wger/features/measurements/screens/measurement_category_sort_screen.dart';
+ import 'package:wger/features/measurements/screens/measurement_entries_screen.dart';
+ import 'package:wger/features/nutrition/screens/ingredient_detail_screen.dart';
+ import 'package:wger/features/nutrition/screens/ingredients_screen.dart';
+@@ -206,6 +207,7 @@ class MainApp extends ConsumerWidget {
+             GymModeScreen.routeName: (ctx) => const GymModeScreen(),
+             HomeTabsScreen.routeName: (ctx) => const HomeTabsScreen(),
+             MeasurementCategoriesScreen.routeName: (ctx) => const MeasurementCategoriesScreen(),
++            MeasurementCategorySortScreen.routeName: (ctx) => const MeasurementCategorySortScreen(),
+             MeasurementEntriesScreen.routeName: (ctx) => const MeasurementEntriesScreen(),
+             NutritionalPlansScreen.routeName: (ctx) => const NutritionalPlansScreen(),
+             NutritionalDiaryScreen.routeName: (ctx) => const NutritionalDiaryScreen(),
